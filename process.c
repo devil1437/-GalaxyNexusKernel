@@ -17,7 +17,10 @@
 #include <linux/delay.h>
 #include <linux/workqueue.h>
 #include <linux/wakelock.h>
-#include <linux/kmod.h>
+#include <linux/fs.h>
+#include <linux/file.h>
+#include <linux/mm.h>
+#include <asm/uaccess.h>
 
 /* 
  * Timeout for stopping processes
@@ -193,19 +196,56 @@ static void thaw_tasks(bool nosig_only)
 	read_unlock(&tasklist_lock);
 }
 
-static void printCpu(void)
+mm_segment_t oldfs;
+ 
+struct file *openFile(char *path,int flag,int mode)
 {
-	char * envp[] = { "HOME=/", NULL };
-	char * argv[] = { "/system/bin/cat", "/proc/stat", ">", "/dev/kmsg", NULL};
-	int err = 0;
+	struct file *fp;
+ 
+	fp=filp_open(path, flag, 0);
+	if (fp) return fp;
+	else return NULL;
+}
+ 
+int readFile(struct file *fp,char *buf,int readlen)
+{
+	if (fp->f_op && fp->f_op->read)
+		return fp->f_op->read(fp,buf,readlen, &fp->f_pos);
+	else
+		return -1;
+}
+ 
+int closeFile(struct file *fp)
+{
+	filp_close(fp,NULL);
+	return 0;
+}
+ 
+void initKernelEnv(void)
+{
+	oldfs = get_fs();
+	set_fs(KERNEL_DS);
+} 
 
-	err = call_usermodehelper(argv[0], argv, envp, 1);
-	if (err < 0) {    
-        pr_err("call_usermodehelper failed. err = %d\n", err);
-    }
-	else{
-		pr_err("call_usermodehelper successful.\n");
+void printCpu(void)
+{
+	char buf[1024];
+	struct file *fp;
+	int ret;
+ 
+	initKernelEnv();
+	fp=openFile("/proc/stat",O_RDONLY,0);
+	if (fp!=NULL) {
+		memset(buf,0,1024);
+
+		if ((ret=readFile(fp,buf,1024))>0)
+			printk("MyKmsg %s\n",buf);
+		else printk("read /proc/stat error %d\n",ret);
+
+		closeFile(fp);
 	}
+
+	set_fs(oldfs); 
 }
 
 void thaw_processes(void)
