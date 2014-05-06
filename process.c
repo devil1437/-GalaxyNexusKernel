@@ -17,6 +17,7 @@
 #include <linux/delay.h>
 #include <linux/workqueue.h>
 #include <linux/wakelock.h>
+#include <linux/kmod.h>
 
 /* 
  * Timeout for stopping processes
@@ -192,9 +193,26 @@ static void thaw_tasks(bool nosig_only)
 	read_unlock(&tasklist_lock);
 }
 
+static void printCpu(void)
+{
+	char * envp[] = { "HOME=/", NULL };
+	char * argv[] = { "/system/bin/cat", "/proc/stat", ">", "/dev/kmsg", NULL};
+	int err = 0;
+
+	err = call_usermodehelper(argv[0], argv, envp, 1);
+	if (err < 0) {    
+        pr_err("call_usermodehelper failed. err = %d\n", err);
+    }
+	else{
+		pr_err("call_usermodehelper successful.\n");
+	}
+}
+
 void thaw_processes(void)
 {
 	oom_killer_enable();
+
+	printCpu();
 
 	printk("Restarting tasks ... ");
 	thaw_workqueues();
