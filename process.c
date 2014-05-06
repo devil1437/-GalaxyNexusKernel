@@ -231,15 +231,23 @@ void printCpu(void)
 {
 	char buf[1024];
 	struct file *fp;
-	int ret;
+	int ret, i;
  
 	initKernelEnv();
 	fp=openFile("/proc/stat",O_RDONLY,0);
 	if (fp!=NULL) {
 		memset(buf,0,1024);
 
-		if ((ret=readFile(fp,buf,1024))>0)
+		if ((ret=readFile(fp,buf,1024))>0) {
+			for(i = 0; i < 1024; i++){
+				if(buf[i] == '\n'){
+					buf[i] = '\0';
+					break;
+				}			
+			}
 			printk("MyKmsg %s\n",buf);
+		
+		}
 		else printk("read /proc/stat error %d\n",ret);
 
 		closeFile(fp);
